@@ -74,6 +74,6 @@ def grab_pic(cam: pylon.InstantCamera) -> pylon.PylonImage:
 
 
 def save_img(img: pylon.PylonImage, name: str, path: str):
-    location = f"{path}/{name}.png"
+    location = f"{path}/{name}_{round(time.time())}.png"
     img.Save(pylon.ImageFileFormat_Png, location)
     print(f"Image {name} was saved to {path}")
