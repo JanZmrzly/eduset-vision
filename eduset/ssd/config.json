@@ -13,6 +13,6 @@
         "CLASSES": ["__background__", "square", "circle", "triangle"],
         "NUM_CLASSES": 4,
 
-        "OUT_DIR": "../samples/outputs"
+        "OUT_DIR": "../samples/ssd_runs"
     }
 }

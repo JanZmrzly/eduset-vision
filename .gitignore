@@ -40,3 +40,6 @@
 
 # Ignore jupyter checkpoints
 /samples/.ipynb_checkpoints
+
+# Ignore SSD training
+/samples/ssd_runs

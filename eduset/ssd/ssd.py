@@ -1,10 +1,10 @@
 # source: https://debuggercafe.com/train-ssd300-vgg16/
 # source: https://pytorch.org/tutorials/beginner/transfer_learning_tutorial.html
 import torchvision
-import cv2 as cv
 import os
 import torch
 
+import cv2 as cv
 import numpy as np
 import glob as glob
 import matplotlib.pyplot as plt
@@ -16,7 +16,7 @@ from torchvision.models.detection import SSD300_VGG16_Weights
 from torch.utils.data import Dataset, DataLoader
 from tqdm.auto import tqdm
 from torchmetrics.detection.mean_ap import MeanAveragePrecision
-from torchmetrics import ConfusionMatrix
+from sklearn.metrics import confusion_matrix
 from albumentations.pytorch import ToTensorV2
 
 
@@ -200,7 +200,7 @@ class Averager:
 
 
 class Model:
-    def __init__(self, epochs: int, train_dataloader: DataLoader, val_dataloader: DataLoader, out_dir: str):
+    def __init__(self, epochs: int, train_dataloader: DataLoader | None, val_dataloader: DataLoader | None, out_dir: str):
         self.epochs = epochs
         self.device = torch.device('cpu')
         self.train_dataloader = train_dataloader
@@ -276,21 +276,25 @@ class Model:
 
         self.save_metrics(train_loss_score, map_score, map50_score)
 
-    def save_metrics(self, loss_score: np.array, map_score: np.array, map50_score: np.array,  confusion_matrix=None) -> None:
+    def save_metrics(self, loss_score: np.array, map_score: np.array, map50_score: np.array,
+                     confusion_matrix=None) -> None:
         out_dir = f"{self.out_dir}/model"
         os.makedirs(name=out_dir, exist_ok=True)
 
         graphs = {"Loss score": loss_score, "mAP": map_score, "mAP50": map50_score}
         for key, value in graphs.items():
-            x = np.arange(len(value))
-            plt.plot(value)
-            plt.title(key)
-            plt.xticks(np.arange(min(x), max(x) + 1, 1.0))
+            x = np.arange(1, len(value)+1)
+            plt.scatter(x, value)
+            plt.plot(x, value)
+            plt.ylabel(key)
+            plt.xlabel("epoch")
 
             plt.savefig(f"{out_dir}/{key}.svg", format="svg")
             plt.clf()
 
-        # TODO: doplnit zobrazení confusion matrix
+        # TODO: add confusion matrix
+
+        print(f"Metrics have been saved to {out_dir}")
 
     def save(self, epoch: int, map_score: float, loss_score: float) -> None:
         out_dir = f"{self.out_dir}/model"
@@ -305,7 +309,7 @@ class Model:
 
         print(f"Epoch #{epoch}\tModel was saved")
 
-    def val_epoch(self, data_loader):
+    def val_epoch(self, data_loader) -> dict:
         progress_bar = tqdm(data_loader, total=len(data_loader))
         target = []
         predictions = []
@@ -333,17 +337,11 @@ class Model:
                 predictions.append(prediction_dict)
                 target.append(true_dict)
 
+            progress_bar.set_description(desc="Validating")
+
         metric = MeanAveragePrecision()
         metric.update(predictions, target)
         metric_summary = metric.compute()
-
-        # confusion_metric = ConfusionMatrix(num_classes=self.num_classes,
-        #                                    task="multiclass",
-        #                                    normalize="true")
-        # confusion_metric.reset()
-        # confusion_metric.update(predictions, target)
-        # conf_matrix = confusion_metric.compute()
-        # metric_summary["confusion_matrix"] = conf_matrix
 
         return metric_summary
 
@@ -376,11 +374,6 @@ class Model:
         return loss_value
 
     def get_params(self) -> None:
-        total_params = sum(p.numel() for p in self.model.parameters())
-
-        total_trainable_params = sum(
-            p.numel() for p in self.model.parameters() if p.requires_grad)
-
         self.params = [p for p in self.model.parameters() if p.requires_grad]
 
     def set_optimizer(self, optimizer) -> None:
