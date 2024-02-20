@@ -1,5 +1,45 @@
-# Ignore .idea folder
-/.idea/
-
 # Ignore virtual enviroment
 /venv/
+
+# Ignore YOLO training
+/samples/Eduset-One-Dataset-1
+/samples/runs
+/samples/yolov8s-seg.pt
+/samples/yolov8n.pt
+
+# Ignore .idea folder
+# Default ignored files
+.idea/shelf/
+.idea/workspace.xml
+# Editor-based HTTP Client requests
+.idea/httpRequests/
+# Datasource local storage ignored files
+.idea/dataSources/
+.idea/dataSources.local.xml
+
+#### Ignore all .idea files ...
+.idea/*
+
+#### Except
+
+# Version Control configuration for your project
+!.idea/vcs.xml
+
+# How IDEA should treat the text files in your project
+.idea/!encodings.xml
+
+# Automatic code formatting
+.idea/!codeStyleSettings.xml
+
+# Project specific words
+!dictionaries
+
+!copyrights
+!misc.xml
+!sqldialects.xml
+
+# Ignore jupyter checkpoints
+/samples/.ipynb_checkpoints
+
+# Ignore SSD training
+/samples/ssd_runs
