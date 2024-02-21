@@ -14,7 +14,7 @@ from xml.etree import ElementTree as Et
 from torchvision.models.detection._utils import retrieve_out_channels
 from torchvision.models.detection import SSD300_VGG16_Weights
 from torch.utils.data import Dataset, DataLoader
-from tqdm.auto import tqdm
+from tqdm import tqdm
 from torchmetrics.detection.mean_ap import MeanAveragePrecision
 from sklearn.metrics import confusion_matrix
 from albumentations.pytorch import ToTensorV2
@@ -255,6 +255,7 @@ class Model:
 
         prev_map = 0
         for epoch in range(self.epochs):
+            print("\n")
             self.train_loss_history.reset()
             train_loss = self.train_epoch(self.train_dataloader)
             metric_summary = self.val_epoch(self.val_dataloader)
@@ -310,14 +311,14 @@ class Model:
         print(f"Epoch #{epoch}\tModel was saved")
 
     def val_epoch(self, data_loader) -> dict:
-        progress_bar = tqdm(data_loader, total=len(data_loader))
         target = []
         predictions = []
 
         print("Validating")
         self.model.eval()
 
-        for _, data in enumerate(progress_bar):
+        progress_bar = tqdm(total=len(data_loader))
+        for data in data_loader:
             images, targets = data
 
             images = list(image.to(self.device) for image in images)
@@ -338,6 +339,9 @@ class Model:
                 target.append(true_dict)
 
             progress_bar.set_description(desc="Validating")
+            progress_bar.update(1)
+
+        progress_bar.close()
 
         metric = MeanAveragePrecision()
         metric.update(predictions, target)
@@ -347,12 +351,12 @@ class Model:
 
     def train_epoch(self, data_loader) -> float:
         loss_value = 0
-        progress_bar = tqdm(data_loader, total=len(data_loader))
 
         print("Training")
         self.model.train()
 
-        for _, data in enumerate(progress_bar):
+        progress_bar = tqdm(total=len(data_loader))
+        for data in data_loader:
             self.optimizer.zero_grad()
             images, targets = data
 
@@ -370,6 +374,9 @@ class Model:
 
             # update the loss value beside the progress bar for each iteration
             progress_bar.set_description(desc=f"Loss: {loss_value:.4f}")
+            progress_bar.update(1)
+
+        progress_bar.close()
 
         return loss_value
 
