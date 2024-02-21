@@ -53,15 +53,7 @@ class Predictor:
             print("\n")
             print(f"Image #{im}\tValidating image {image_name}")
 
-            image = cv.resize(image, dsize=(self.size, self. size))
-            image = cv.cvtColor(image, cv.COLOR_BGR2RGB).astype(np.float32)
-            image /= 255
-
-            # Transpose height, weight, color -> color, height, weight
-            image_input = np.transpose(image, axes=(2, 0, 1)).astype(np.float32)
-            image_input = torch.tensor(image_input, dtype=torch.float).cuda()
-            # Add batch dimension
-            image_input = torch.unsqueeze(image_input, dim=0)
+            image_input = self.preprocess(image)
 
             with torch.no_grad():
                 prediction = self.model.model(image_input.to(self.device))
@@ -74,6 +66,19 @@ class Predictor:
 
             self.disp_image(predicted_image) if plot is True else print("Plot is disabled")
             self.save_image(predicted_image, image_name) if save is True else print("Saving is disabled")
+
+    def preprocess(self, image: np.ndarray) -> torch.tensor:
+        image = cv.resize(image, dsize=(self.size, self.size))
+        image = cv.cvtColor(image, cv.COLOR_BGR2RGB).astype(np.float32)
+        image /= 255
+
+        # Transpose height, weight, color -> color, height, weight
+        image_input = np.transpose(image, axes=(2, 0, 1)).astype(np.float32)
+        image_input = torch.tensor(image_input, dtype=torch.float).cuda()
+        # Add batch dimension
+        image_input = torch.unsqueeze(image_input, dim=0)
+
+        return image_input
 
     def save_image(self, image: np.ndarray, image_name: str) -> None:
         os.makedirs(name=f"{self.output_path}", exist_ok=True)
