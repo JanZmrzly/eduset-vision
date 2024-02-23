@@ -2,7 +2,7 @@
     {
         "BATCH_SIZE": 16,
         "RESIZE_TO": 640,
-        "NUM_EPOCHS": 100,
+        "NUM_EPOCHS": 50,
         "NUM_WORKERS": 0,
 
         "DEVICE": 0,
@@ -10,7 +10,13 @@
         "TRAIN_DIR": "../samples/Eduset-One-Dataset-1/train",
         "VAL_DIR": "../samples/Eduset-One-Dataset-1/valid",
 
-        "CLASSES": ["__background__", "square", "circle", "triangle"],
+        "CLASSES":  {
+                        "0": {"name": "__background__", "color": [0, 0, 0]},
+                        "1": {"name": "circle", "color": [255, 0, 0]},
+                        "2": {"name": "square", "color": [0, 255, 0]},
+                        "3": {"name": "triangle", "color": [0, 0, 255]}
+                    },
+
         "NUM_CLASSES": 4,
 
         "OUT_DIR": "../samples/ssd_runs"

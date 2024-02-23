@@ -1,4 +1,3 @@
-# source: https://debuggercafe.com/train-ssd300-vgg16/
 import torch
 import os
 
