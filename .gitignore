@@ -43,3 +43,6 @@
 
 # Ignore SSD training
 /samples/ssd_runs
+
+# Ignore Faster RCNN training
+/samples/fastercnn_runs

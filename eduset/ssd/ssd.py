@@ -1,4 +1,3 @@
-# source: https://debuggercafe.com/train-ssd300-vgg16/
 # source: https://pytorch.org/tutorials/beginner/transfer_learning_tutorial.html
 import torchvision
 import os
@@ -6,6 +5,7 @@ import torch
 
 import cv2 as cv
 import numpy as np
+import pandas as pd
 import glob as glob
 import matplotlib.pyplot as plt
 import albumentations as a
@@ -16,8 +16,9 @@ from torchvision.models.detection import SSD300_VGG16_Weights
 from torch.utils.data import Dataset, DataLoader
 from tqdm import tqdm
 from torchmetrics.detection.mean_ap import MeanAveragePrecision
-from sklearn.metrics import confusion_matrix
 from albumentations.pytorch import ToTensorV2
+
+# TODO: add more metrics
 
 
 class VOCDetection(Dataset):
@@ -31,7 +32,7 @@ class VOCDetection(Dataset):
         self.image_file_types = ['*.jpg', '*.jpeg', '*.png', '*.ppm', '*.JPG']
         self.all_image_paths = []
 
-        # Get all the image paths in sorted order.
+        # Get all the image paths in sorted order
         for file_type in self.image_file_types:
             self.all_image_paths.extend(glob.glob(os.path.join(self.root, file_type)))
         self.all_images = [image_path.split(os.path.sep)[-1] for image_path in self.all_image_paths]
@@ -46,16 +47,16 @@ class VOCDetection(Dataset):
                 f"Items:\t\t{self.__len__()}\n")
 
     def __getitem__(self, idx):
-        # Capture the image name and the full image path.
+        # Capture the image name and the full image path
         image_name = self.all_images[idx]
         image_path = os.path.join(self.root, image_name)
 
-        # Read and preprocess the image.
+        # Read and preprocess the image
         image = cv.imread(image_path)
         image = cv.cvtColor(image, cv.COLOR_BGR2RGB).astype(np.float32)
         image_resized = (cv.resize(image, dsize=(self.width, self.height))) / 255
 
-        # Capture the corresponding XML file for getting the annotations.
+        # Capture the corresponding XML file for getting the annotations
         annot_filename = os.path.splitext(image_name)[0] + '.xml'
         annot_file_path = os.path.join(self.root, annot_filename)
 
@@ -64,33 +65,31 @@ class VOCDetection(Dataset):
         tree = Et.parse(annot_file_path)
         root = tree.getroot()
 
-        # Original image width and height.
+        # Original image width and height
         image_width = image.shape[1]
         image_height = image.shape[0]
 
-        # Box coordinates for xml files are extracted
-        # and corrected for image size given.
+        # Box coordinates for xml files are extracted and corrected for image size given
         for member in root.findall('object'):
             # Get label and map the `classes`.
             labels.append(self.classes.index(member.find('name').text))
 
-            # Left corner x-coordinates.
+            # Left corner x-coordinates
             x_min = int(member.find('bndbox').find('xmin').text)
-            # Right corner x-coordinates.
+            # Right corner x-coordinates
             x_max = int(member.find('bndbox').find('xmax').text)
-            # Left corner y-coordinates.
+            # Left corner y-coordinates
             y_min = int(member.find('bndbox').find('ymin').text)
-            # Right corner y-coordinates.
+            # Right corner y-coordinates
             y_max = int(member.find('bndbox').find('ymax').text)
 
-            # Resize the bounding boxes according
-            # to resized image `width`, `height`.
+            # Resize the bounding boxes according to resized image width, height
             x_min_final = (x_min / image_width) * self.width
             x_max_final = (x_max / image_width) * self.width
             y_min_final = (y_min / image_height) * self.height
             y_max_final = (y_max / image_height) * self.height
 
-            # Check that all coordinates are within the image.
+            # Check that all coordinates are within the image
             if x_max_final > self.width:
                 x_max_final = self.width
             if y_max_final > self.height:
@@ -98,21 +97,21 @@ class VOCDetection(Dataset):
 
             boxes.append([x_min_final, y_min_final, x_max_final, y_max_final])
 
-        # Bounding box to tensor.
+        # Bounding box to tensor
         boxes = torch.as_tensor(boxes, dtype=torch.float32)
-        # Area of the bounding boxes.
+        # Area of the bounding boxes
         area = (boxes[:, 3] - boxes[:, 1]) * (boxes[:, 2] - boxes[:, 0]) if len(boxes) > 0 \
             else torch.as_tensor(boxes, dtype=torch.float32)
-        # No crowd instances.
+        # No crowd instances
         is_crowd = torch.zeros((boxes.shape[0],), dtype=torch.int64)
-        # Labels to tensor.
+        # Labels to tensor
         labels = torch.as_tensor(labels, dtype=torch.int64)
 
-        # Prepare the final `target` dictionary.
+        # Prepare the final target dictionary
         target = {"boxes": boxes,
                   "labels": labels,
                   "area": area,
-                  "is_crowd": is_crowd}
+                  "iscrowd": is_crowd}
 
         image_id = torch.tensor([idx])
         target["image_id"] = image_id
@@ -135,8 +134,8 @@ class VOCDetection(Dataset):
 
         for box_count in range(len(target["boxes"])):
             box = target['boxes'][box_count]
-            label = classes_vis[(target['labels'][box_count]).item() - 1]["name"]
-            color = classes_vis[(target['labels'][box_count]).item() - 1]["color"]
+            label = classes_vis[str((target['labels'][box_count]).item())]["name"]
+            color = classes_vis[str((target['labels'][box_count]).item())]["color"]
 
             cv.rectangle(
                 image,
@@ -179,11 +178,11 @@ def collate_fn(batch):
 
 
 class Averager:
-    def __init__(self):
+    def __init__(self) -> None:
         self.current_total = 0.0
         self.iterations = 0.0
 
-    def send(self, value):
+    def send(self, value) -> None:
         self.current_total += value
         self.iterations += 1
 
@@ -194,13 +193,14 @@ class Averager:
         else:
             return 1.0 * self.current_total / self.iterations
 
-    def reset(self):
+    def reset(self) -> None:
         self.current_total = 0.0
         self.iterations = 0.0
 
 
 class Model:
-    def __init__(self, epochs: int, train_dataloader: DataLoader | None, val_dataloader: DataLoader | None, out_dir: str):
+    def __init__(self, epochs: int,
+                 train_dataloader: DataLoader | None, val_dataloader: DataLoader | None, out_dir: str):
         self.epochs = epochs
         self.device = torch.device('cpu')
         self.train_dataloader = train_dataloader
@@ -251,7 +251,6 @@ class Model:
         train_loss_score = np.array([])
         map_score = np.array([])
         map50_score = np.array([])
-        confusion_matrix = []
 
         prev_map = 0
         for epoch in range(self.epochs):
@@ -278,22 +277,39 @@ class Model:
         self.save_metrics(train_loss_score, map_score, map50_score)
 
     def save_metrics(self, loss_score: np.array, map_score: np.array, map50_score: np.array,
-                     confusion_matrix=None) -> None:
+                     csv=True) -> None:
         out_dir = f"{self.out_dir}/model"
         os.makedirs(name=out_dir, exist_ok=True)
 
-        graphs = {"Loss score": loss_score, "mAP": map_score, "mAP50": map50_score}
+        graphs = {"loss score": loss_score, "mAP": map_score, "mAP50": map50_score}
         for key, value in graphs.items():
-            x = np.arange(1, len(value)+1)
+            x = np.arange(1, len(value) + 1)
             plt.scatter(x, value)
-            plt.plot(x, value)
+            plt.plot(x, value, label="results")
+
+            if len(value) >= 20:
+                smoothed = np.convolve(value, np.ones(2) / 2, mode='valid')
+                smoothed = np.insert(smoothed, 0, value[0])
+                smoothed = np.append(smoothed, value[-1])
+                xx = np.arange(1, len(smoothed)+1)
+                plt.plot(xx, smoothed, "--", color="orange", label="smooth")
+
             plt.ylabel(key)
             plt.xlabel("epoch")
+            plt.legend()
 
-            plt.savefig(f"{out_dir}/{key}.svg", format="svg")
+            plt.savefig(f"{out_dir}/{key}.png", format="png")
             plt.clf()
 
-        # TODO: add confusion matrix
+        if csv is True:
+            data = {
+                "epoch": np.arange(1, len(loss_score) + 1),
+                "loss score": loss_score,
+                "mAP": map_score,
+                "mAP@50": map50_score,
+            }
+            df = pd.DataFrame(data)
+            df.to_csv(path_or_buf=f"{out_dir}/results.csv", index=False)
 
         print(f"Metrics have been saved to {out_dir}")
 
@@ -392,13 +408,16 @@ class Model:
 
 def get_train_transform():
     return a.Compose([
+        a.RandomRotate90(p=0.5),
+        a.Flip(p=0.5),
+        a.Transpose(p=0.5),
         a.Blur(blur_limit=3, p=0.1),
         a.MotionBlur(blur_limit=3, p=0.1),
         a.MedianBlur(blur_limit=3, p=0.1),
-        a.ToGray(p=0.3),
-        a.RandomBrightnessContrast(p=0.3),
-        a.ColorJitter(p=0.3),
-        a.RandomGamma(p=0.3),
+        a.ToGray(p=0.1),
+        a.RandomBrightnessContrast(p=0.1),
+        a.ColorJitter(p=0.1),
+        a.RandomGamma(p=0.1),
         ToTensorV2(p=1.0),
     ], bbox_params={
         'format': 'pascal_voc',
@@ -408,13 +427,16 @@ def get_train_transform():
 
 def get_valid_transform():
     return a.Compose([
+        a.RandomRotate90(p=0.5),
+        a.Flip(p=0.5),
+        a.Transpose(p=0.5),
         a.Blur(blur_limit=3, p=0.1),
         a.MotionBlur(blur_limit=3, p=0.1),
         a.MedianBlur(blur_limit=3, p=0.1),
-        a.ToGray(p=0.3),
-        a.RandomBrightnessContrast(p=0.3),
-        a.ColorJitter(p=0.3),
-        a.RandomGamma(p=0.3),
+        a.ToGray(p=0.1),
+        a.RandomBrightnessContrast(p=0.1),
+        a.ColorJitter(p=0.1),
+        a.RandomGamma(p=0.1),
         ToTensorV2(p=1.0),
     ], bbox_params={
         'format': 'pascal_voc',
