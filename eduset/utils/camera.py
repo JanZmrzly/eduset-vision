@@ -1,9 +1,14 @@
+import multiprocessing
+import random
 import time
+
+import glob as glob
 import pypylon.pylon as pylon
-# import logging
+
+from typing import List
 
 
-def get_devices():
+def get_devices() -> None:
     tlf = pylon.TlFactory.GetInstance()
     devices = tlf.EnumerateDevices()
 
@@ -12,13 +17,13 @@ def get_devices():
         print(device.GetModelName() + "\t" + device.GetSerialNumber())
 
 
-def reset(cam: pylon.InstantCamera):
+def reset(cam: pylon.InstantCamera) -> None:
     cam.UserSetSelector.SetValue = "Default"
     cam.UserSetLoad.Execute()
     print("Camera was set to Default")
 
 
-def get_info(cam: pylon.InstantCamera):
+def get_info(cam: pylon.InstantCamera) -> None:
     print(f"Trigger Selector: {cam.TriggerSelector.Symbolics}")
     print(f"Pixel Format: {cam.PixelFormat.Symbolics}")
     print(f"Gain: {cam.Gain.Value}")
@@ -34,12 +39,13 @@ def connect(device: int) -> pylon.InstantCamera:
     return cam
 
 
-def disconnect(cam: pylon.InstantCamera):
+def disconnect(cam: pylon.InstantCamera) -> None:
     cam.Close()
     print(f"Successfully disconnected")
 
 
-def preview_continuous(cam: pylon.InstantCamera):
+# FIXME: Only for Windows
+def preview_continuous(cam: pylon.InstantCamera) -> None:
     image_window = pylon.PylonImageWindow()
     image_window.Create(1)
 
@@ -65,7 +71,7 @@ def preview_continuous(cam: pylon.InstantCamera):
 
 
 def grab_pic(cam: pylon.InstantCamera) -> pylon.PylonImage:
-    pic = cam.GrabOne(100)
+    pic = cam.GrabOne(1000)
     img = pylon.PylonImage()
     img.Release()
     img.AttachGrabResultBuffer(pic)
@@ -73,7 +79,25 @@ def grab_pic(cam: pylon.InstantCamera) -> pylon.PylonImage:
     return img
 
 
-def save_img(img: pylon.PylonImage, name: str, path: str):
+def save_img(img: pylon.PylonImage, name: str, path: str) -> None:
     location = f"{path}/{name}_{round(time.time())}.png"
     img.Save(pylon.ImageFileFormat_Png, location)
     print(f"Image {name} was saved to {path}")
+
+
+def custom_emulation(cam: pylon.InstantCamera, image_file_name: str, orig_shape: tuple, fail=True) -> None:
+    cam.TestImageSelector = "Off"
+    cam.ImageFileMode = "On"
+    cam.ImageFilename = image_file_name
+    cam.Width = orig_shape[0]
+    cam.Height = orig_shape[1]
+
+    if fail is True:
+        cam.ForceFailedBufferCount.Value = 10
+        cam.ForceFailedBuffer.Execute()
+
+
+def update_emulation(cam: pylon.InstantCamera, images_dir: str) -> None:
+    test_images = glob.glob(f"{images_dir}*.png")
+    img_path = random.choice(test_images)
+    cam.ImageFilename = img_path

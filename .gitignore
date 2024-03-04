@@ -3,7 +3,7 @@
 
 # Ignore YOLO training
 /samples/Eduset-One-Dataset-1
-/samples/runs
+/samples/yolo_runs
 /samples/yolov8s-seg.pt
 /samples/yolov8n.pt
 
