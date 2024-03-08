@@ -9,8 +9,8 @@ from typing import List
 
 def get_placement(orig_image: np.ndarray, results: List[Results], classes: dict) -> (dict, np.ndarray):
     annotator = Annotator(orig_image.copy())
-    placement0 = {}
-    placement1 = {}
+    placement0: dict | None = {}
+    # placement1: dict | None = {}
 
     for result in results:
         for i, box in enumerate(result.boxes):
@@ -30,7 +30,7 @@ def get_placement(orig_image: np.ndarray, results: List[Results], classes: dict)
 
             center, angle = symmetric_get_angle(mask) if symmetrical else pca_get_angle(mask)
 
-            placement0[len(placement0)] = {"name": label, "x": center[0], "y": center[1], "angle": angle}
+            placement0[str(len(placement0))] = {"name": label, "x": center[0], "y": center[1], "angle": angle}
             # placement1[len(placement1)] = {"name": label, "x": center1[0], "y": center1[1], "angle": angle1}
 
             annotator.box_label(box_shape, label=f"{label} | {conf:.2f}", color=color)
@@ -74,7 +74,7 @@ def pca_get_angle(points: np.ndarray) -> (tuple, float):
 
     # Store the center of the object
     center = (int(mean[0, 0]), int(mean[0, 1]))
-    angle = np.arctan2(eigenvectors[0, 1], eigenvectors[0, 0])
+    angle = float(np.arctan2(eigenvectors[0, 1], eigenvectors[0, 0]))
 
     return center, angle
 
@@ -82,6 +82,5 @@ def pca_get_angle(points: np.ndarray) -> (tuple, float):
 def symmetric_get_angle(points: np.ndarray) -> (tuple, float):
     box = cv.minAreaRect(points)
     center = (int(box[0][0]), int(box[0][1]))
-    angle = (box[2] * np.pi) / 180.0
+    angle = float((box[2] * np.pi) / 180.0)
     return center, angle
-
