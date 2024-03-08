@@ -1,6 +1,7 @@
 import os
-# import time
 import logging
+import uvicorn
+import asyncio
 
 import pypylon.pylon as pylon
 import cv2 as cv
@@ -10,14 +11,22 @@ from eduset.utils.camera import get_devices, connect, disconnect, grab_pic, cust
 from eduset.utils.placement import get_placement
 from datetime import datetime
 from ultralytics import YOLO
+from fastapi import FastAPI
+from fastapi.responses import JSONResponse
+from asyncio import LifoQueue
+
+# FIXME: add api clearer way
+_app = FastAPI()
+_shared_queue = LifoQueue(maxsize=1)
 
 # TODO: add logger
 _logger = logging.getLogger(__name__)
 
 
-def get_client(server_url: str) -> None:   # FIXME add ->
-    client = None
-    return client
+@_app.get("/placement")
+async def number() -> JSONResponse:
+    placement = await _shared_queue.get()
+    return JSONResponse(content=placement)
 
 
 def get_time() -> str:
@@ -33,8 +42,8 @@ def get_time() -> str:
     return f"{day}-{month}-{year} {hour}:{minute}.{second}"
 
 
-def run(cam: pylon.InstantCamera, model: YOLO, classes: dict | None,
-        model_confidence=0.8, visualisation=False) -> dict | None:
+def _get_placement(cam: pylon.InstantCamera, model: YOLO, classes: dict | None,
+                   model_confidence=0.8, visualisation=False) -> dict | None:
 
     placement = None
     try:
@@ -49,7 +58,7 @@ def run(cam: pylon.InstantCamera, model: YOLO, classes: dict | None,
 
         if visualisation is True:
             cv.imshow(winname="Prediction&Placement", mat=predicted_image)
-            cv.waitKey(0)
+            cv.waitKey(1)
     except ValueError:
         print("Bad camera connection")
 
@@ -61,9 +70,10 @@ def disp_placement(placement: dict) -> None:
     [print(placement[key]) for key in placement]
 
 
-def main() -> None:
+async def vision_routine() -> None:
+    await asyncio.sleep(2)  # Starting API server
+
     os.environ["PYLON_CAMEMU"] = "2"
-    url = f"opcua_server_url"
     model_path = "../samples/yolo_runs/model/model_v12/weights/best.pt"
     model_confidence = 0.8
     verbose = True
@@ -87,8 +97,6 @@ def main() -> None:
 
     model = YOLO(model_path)
 
-    client = get_client(url)
-
     if emulation is True:
         custom_emulation(cam, image_file_name, fail=fail_emulation, orig_shape=orig_shape)
 
@@ -101,7 +109,12 @@ def main() -> None:
 
     try:
         while True:
-            placement = run(cam, model, classes, model_confidence, visualization)
+            placement = _get_placement(cam, model, classes, model_confidence, visualization)
+            await _shared_queue.put(placement)
+            await asyncio.sleep(1)
+            if not _shared_queue.empty():
+                _shared_queue.get_nowait()
+                _shared_queue.task_done()
 
             if verbose is True:
                 disp_placement(placement)
@@ -109,8 +122,16 @@ def main() -> None:
             if emulation is True:
                 update_emulation(cam, image_file_name)
 
-    except KeyboardInterrupt:
+    finally:
         print("\nThe program was terminated by pressing a key...")
         disconnect(cam)
-        # TODO: Client disconnect
         cv.destroyAllWindows()
+
+
+async def main():
+    uvicorn_config = uvicorn.Config(_app, host="localhost", port=8000, loop="asyncio")
+    server = uvicorn.Server(uvicorn_config)
+    loop = asyncio.get_event_loop()
+
+    loop.create_task(vision_routine())
+    await server.serve()
