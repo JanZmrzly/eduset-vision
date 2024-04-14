@@ -1,32 +1,33 @@
-import multiprocessing
 import random
 import time
 
 import glob as glob
 import pypylon.pylon as pylon
 
-from typing import List
+from eduset.utils.logger import EdusetLogger
+
+logger = EdusetLogger(__name__)
 
 
 def get_devices() -> None:
     tlf = pylon.TlFactory.GetInstance()
     devices = tlf.EnumerateDevices()
 
-    print("Model name\t\tSerial number")
+    logger.info("Model name\t\tSerial number")
     for device in devices:
-        print(device.GetModelName() + "\t" + device.GetSerialNumber())
+        logger.info(device.GetModelName() + "\t" + device.GetSerialNumber())
 
 
 def reset(cam: pylon.InstantCamera) -> None:
     cam.UserSetSelector.SetValue = "Default"
     cam.UserSetLoad.Execute()
-    print("Camera was set to Default")
+    logger.info("Camera was set to Default")
 
 
 def get_info(cam: pylon.InstantCamera) -> None:
-    print(f"Trigger Selector: {cam.TriggerSelector.Symbolics}")
-    print(f"Pixel Format: {cam.PixelFormat.Symbolics}")
-    print(f"Gain: {cam.Gain.Value}")
+    logger.info(f"Trigger Selector: {cam.TriggerSelector.Symbolics}")
+    logger.info(f"Pixel Format: {cam.PixelFormat.Symbolics}")
+    logger.info(f"Gain: {cam.Gain.Value}")
 
 
 def connect(device: int) -> pylon.InstantCamera:
@@ -34,14 +35,14 @@ def connect(device: int) -> pylon.InstantCamera:
     devices = tlf.EnumerateDevices()
     cam = pylon.InstantCamera(tlf.CreateDevice(devices[device]))
     cam.Open()
-    print(f"Successfully connected to {devices[device].GetModelName()}")
+    logger.info(f"Successfully connected to {devices[device].GetModelName()}")
 
     return cam
 
 
 def disconnect(cam: pylon.InstantCamera) -> None:
     cam.Close()
-    print(f"Successfully disconnected")
+    logger.info(f"Successfully disconnected")
 
 
 # FIXME: Only for Windows
@@ -60,7 +61,7 @@ def preview_continuous(cam: pylon.InstantCamera) -> None:
             image_window.Show()
         else:
             # grabResult.ErrorDescription does not work properly in python could throw UnicodeDecodeError
-            print("Error: ", grab_result.ErrorCode)
+            logger.error(grab_result.ErrorCode)
         grab_result.Release()
         time.sleep(0.01)
 
@@ -82,7 +83,7 @@ def grab_pic(cam: pylon.InstantCamera) -> pylon.PylonImage:
 def save_img(img: pylon.PylonImage, name: str, path: str) -> None:
     location = f"{path}/{name}_{round(time.time())}.png"
     img.Save(pylon.ImageFileFormat_Png, location)
-    print(f"Image {name} was saved to {path}")
+    logger.info(f"Image {name} was saved to {path}")
 
 
 def custom_emulation(cam: pylon.InstantCamera, image_file_name: str, orig_shape: tuple, fail=True) -> None:

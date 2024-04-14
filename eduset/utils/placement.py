@@ -7,10 +7,11 @@ from eduset.yolo.yolo import smooth
 from typing import List
 
 
-def get_placement(orig_image: np.ndarray, results: List[Results], classes: dict) -> (dict, np.ndarray):
+def get_placement(orig_image: np.ndarray, results: List[Results],
+                  classes: dict, real_shape: np.ndarray) -> (dict, np.ndarray):
     annotator = Annotator(orig_image.copy())
-    placement0: dict | None = {}
-    # placement1: dict | None = {}
+    placement_mm: dict | None = {}
+    placement_px: dict | None = {}
 
     for result in results:
         for i, box in enumerate(result.boxes):
@@ -30,16 +31,15 @@ def get_placement(orig_image: np.ndarray, results: List[Results], classes: dict)
 
             center, angle = symmetric_get_angle(mask) if symmetrical else pca_get_angle(mask)
 
-            placement0[str(len(placement0))] = {"name": label, "x": center[0], "y": center[1], "angle": angle}
-            # placement1[len(placement1)] = {"name": label, "x": center1[0], "y": center1[1], "angle": angle1}
-
+            x, y = pixels_to_mm(center, resolution=orig_image.shape[:2], real_shape=real_shape)
+            placement_mm[str(len(placement_mm))] = {"name": label, "x": x, "y": y, "angle": angle}
+            placement_px[str(len(placement_px))] = {"name": label, "x": center[0], "y": center[1], "angle": angle}
             annotator.box_label(box_shape, label=f"{label} | {conf:.2f}", color=color)
 
     image = annotator.result()
-    image = draw_rotations(image, placement0, color=(255, 255, 255))
-    # image = draw_rotations(image, placement1, color=(255, 255, 0))
+    image = draw_rotations(image, placement_px, color=(255, 255, 255))
 
-    return placement0, image
+    return placement_mm, image
 
 
 def draw_rotations(image: np.ndarray, placement: dict, color=(0, 0, 0)) -> np.ndarray:
@@ -74,7 +74,7 @@ def pca_get_angle(points: np.ndarray) -> (tuple, float):
 
     # Store the center of the object
     center = (int(mean[0, 0]), int(mean[0, 1]))
-    angle = float(np.arctan2(eigenvectors[0, 1], eigenvectors[0, 0]))
+    angle = round(float(np.arctan2(eigenvectors[0, 1], eigenvectors[0, 0])), 2)
 
     return center, angle
 
@@ -82,5 +82,12 @@ def pca_get_angle(points: np.ndarray) -> (tuple, float):
 def symmetric_get_angle(points: np.ndarray) -> (tuple, float):
     box = cv.minAreaRect(points)
     center = (int(box[0][0]), int(box[0][1]))
-    angle = float((box[2] * np.pi) / 180.0)
+    angle = round(float((box[2] * np.pi) / 180.0), 2)
     return center, angle
+
+
+def pixels_to_mm(center: np.ndarray, resolution: tuple, real_shape: np.ndarray) -> (int, int):
+    x = round(float((center[0] / resolution[0]) * real_shape[0]))
+    y = round(float((center[1] / resolution[0]) * real_shape[1]))
+
+    return x, y

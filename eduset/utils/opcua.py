@@ -12,18 +12,12 @@ from cryptography.x509.oid import ExtendedKeyUsageOID
 from cryptography.utils import CryptographyDeprecationWarning
 from pathlib import Path
 
+from eduset.utils.logger import EdusetLogger
+
 warnings.filterwarnings(action="ignore", category=CryptographyDeprecationWarning)
 
 
-class SubHandler:
-    def datachange_notification(self, node: Node, val, data):
-        pass
-
-    def event_notification(self, event: ua.EventNotificationList):
-        pass
-
-    def status_change_notification(self, status: ua.StatusChangeNotification):
-        pass
+logger = EdusetLogger(__name__)
 
 
 class OPCUAClient(Client):
@@ -37,6 +31,7 @@ class OPCUAClient(Client):
         self.secure_channel_timeout = 30000
         self.session_timeout = 30000
         self.placement_node: Node | None = None
+        self.control_signal_node: Node | None = None
         self.buffer: dict = {}
 
         self.name = "EdusetONE Vision OPC UA Client"
@@ -48,6 +43,11 @@ class OPCUAClient(Client):
         nsidx = await self.get_namespace_index(ns) if type(ns) is str else ns
 
         self.placement_node = self.get_node(f"ns={nsidx}; i={i}")
+
+    async def set_control_signal_node(self, ns: str | int, i: int) -> None:
+        nsidx = await self.get_namespace_index(ns) if type(ns) is str else ns
+
+        self.control_signal_node = self.get_node(f"ns={nsidx}; i={i}")
 
     async def set_encryption(self) -> None:
         host_name = socket.gethostname()
@@ -78,37 +78,34 @@ class OPCUAClient(Client):
 
         self.certificate_validator = validator
 
-    async def run(self, ns: str | int, i: int, time: int, api_url: str) -> None:
-        handler = SubHandler()
+    async def run(self, control_signal: dict, placement: dict, time: int, api_endpoint: str) -> None:
+        handler = SubHandler(self, api_endpoint)
 
         while True:
             try:
                 async with self:
-                    print(f"Connected to server {self.url}")
-                    await self.set_placement_node(ns, i)
+                    logger.info(f"Connected to server {self.url}")
+                    await self.set_control_signal_node(control_signal["ns"], control_signal["i"])
+                    await self.set_placement_node(placement["ns"], placement["i"])
 
-                    subscription = await self.create_subscription(period=500, handler=handler)
+                    subscription = await self.create_subscription(period=300, handler=handler)
                     nodes = [
-                        self.placement_node,
-                        self.get_node(ua.ObjectIds.Server_ServerStatus_CurrentTime),
+                        self.control_signal_node,
                     ]
                     await subscription.subscribe_data_change(nodes)
-
                     await self.get_buffer()
 
                     while True:
-                        await asyncio.sleep(0.01)
+                        await asyncio.sleep(1)
                         await self.check_connection()
-                        placement = get_placement_from_api(api_url)
-                        await self.rewrite_buffer(placement)
 
             except (ConnectionError, ua.UaError) as e:
-                print(e)
-                print(f"No server {self.url}. Reconnecting in {time} seconds..")
+                logger.error(e)
+                logger.error(f"No server {self.url}. Reconnecting in {time} seconds..")
                 await asyncio.sleep(time)
             except OSError as e:
-                print(e)
-                print(f"No server {self.url}. Reconnecting in {time} seconds..")
+                logger.error(e)
+                logger.error(f"No server {self.url}. Reconnecting in {time} seconds..")
                 await asyncio.sleep(time)
 
     async def get_buffer(self) -> None:
@@ -128,7 +125,7 @@ class OPCUAClient(Client):
         if placement:
             shorter_dict = placement if len(placement) < len(self.buffer) else self.buffer
 
-            for key, item in shorter_dict.items():
+            for key, item in placement.items():
                 placement_item = placement[key]
                 buffer_item = self.buffer[key]
 
@@ -141,6 +138,30 @@ class OPCUAClient(Client):
                 await buffer_item["x"].write_value(new_x)
                 await buffer_item["y"].write_value(new_y)
                 await buffer_item["angle"].write_value(new_angle)
+
+    async def fill_placement(self, placement: dict) -> dict:
+        for i in range(len(placement), len(self.buffer)):
+            placement[f"{i}"] = {'name': '', 'x': 0, 'y': 0, 'angle': 0.0}
+
+        return placement
+
+
+class SubHandler:
+    def __init__(self, client: OPCUAClient, api_endpoint: str):
+        self.client = client
+        self.api_endpoint = api_endpoint
+
+    async def datachange_notification(self, node: Node, val, data):
+        if val:
+            placement = get_placement_from_api(self.api_endpoint)
+            placement = await self.client.fill_placement(placement)
+            await self.client.rewrite_buffer(placement)
+
+    def event_notification(self, event: ua.EventNotificationList):
+        pass
+
+    def status_change_notification(self, status: ua.StatusChangeNotification):
+        pass
 
 
 def get_placement() -> dict:
@@ -169,23 +190,8 @@ def get_placement_from_api(api_url: str) -> dict | None:
             data = response.json()
             return data
         else:
-            print(f"Error while collecting data: {response.status_code}")
+            logger.error(f"Error while collecting data: {response.status_code}")
             return None
     except Exception as e:
-        print(f"Error: {e}")
+        logger.error(f"Error: {e}")
         return None
-
-
-async def main() -> None:
-    url = "opc.tcp://192.168.0.10:4840"
-    ns = "http://EdusetONE"
-    i = 19
-
-    api_url = "http://localhost:8000/placement"
-    client = OPCUAClient(url=url)
-
-    try:
-        await client.set_encryption() if client.encryption is True else None
-        await client.run(ns, i, time=2, api_url=api_url)
-    except KeyboardInterrupt:
-        await client.disconnect()
