@@ -31,10 +31,8 @@ url = "opc.tcp://192.168.0.10:4840"
     
 api_endpoint = "http://localhost:8000/placement"
 
-control_signal = {"ns": "http://EdusetONE",
-                      "i": 75}
-placement = {"ns": "http://EdusetONE",
-                 "i": 19}
+control_signal = {"ns": "http://EdusetONE", "i": 75}
+placement = {"ns": "http://EdusetONE", "i": 19}
 
 client = OPCUAClient(url=url)
 
