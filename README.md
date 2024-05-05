@@ -47,3 +47,7 @@ try:
 except KeyboardInterrupt:
     await client.disconnect()
 ```
+
+## License
+
+[![License](https://www.gnu.org/licenses/gpl-3.0.html)]
