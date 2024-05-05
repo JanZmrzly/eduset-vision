@@ -48,6 +48,12 @@ except KeyboardInterrupt:
     await client.disconnect()
 ```
 
-## License
+**License:**
 
-[![License](https://www.gnu.org/licenses/gpl-3.0.html)]
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+
+The project is licensed under the GNU General Public License version 3 (GPLv3)
+
+**Contact:**
+
+For inquiries and support, please contact _zmrzlyjan@gmail.com_ for more information.
