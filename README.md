@@ -10,6 +10,11 @@ The custom dataset used to train the detection neural networks is available at t
 2. [Kaggle](https://www.kaggle.com/datasets/janzmrzly/eduset-one-dataset)
 
 
+## Instalation
+
+> [!WARNING]
+> Installation instructions will be provided once the Python package is created
+
 ## Samples
 
 In the [_samples_](https://github.com/JanZmrzly/eduset-vision/tree/main/samples) folder, there are examples of Jupyter notebooks that were used to work with detection frameworks. These examples demonstrate how it is possible to deploy each of the detection frameworks on a custom dataset. The background for the examples is in the [_eduset_](https://github.com/JanZmrzly/eduset-vision/tree/main/eduset) subfolder. This folder can serve as the default package for subsequent work.
